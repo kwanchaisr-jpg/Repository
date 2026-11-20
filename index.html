@@ -1,0 +1,1576 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="referrer" content="no-referrer" />
+  <title>Haier Logistics - ระบบบริหารคิวรถขนส่ง (Yard &amp; Dock WMS)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            haier: {
+              DEFAULT: '#005AAB',
+              dark: '#004482',
+              light: '#EBF4FC',
+              soft: '#F4F8FC'
+            }
+          },
+          fontFamily: {
+            sans: ['Sarabun', 'sans-serif'],
+            display: ['Prompt', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body {
+      font-family: 'Sarabun', sans-serif;
+      background-color: #F3F6FA;
+      color: #0F172A;
+    }
+    h1, h2, h3, .font-display {
+      font-family: 'Prompt', sans-serif;
+    }
+    .plate-badge {
+      font-family: 'Prompt', sans-serif;
+      background: #FFFFFF;
+      border: 2px solid #1E293B;
+      border-radius: 8px;
+      padding: 2px 10px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      display: inline-block;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+    }
+    @keyframes pulseRing {
+      0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.55); }
+      70% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+    }
+    .speaking-pulse {
+      animation: pulseRing 1.4s infinite;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Top Navigation Bar -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+      <!-- Brand -->
+      <div class="flex items-center gap-3">
+        <div class="bg-haier text-white font-display font-bold text-xl px-3.5 py-1.5 rounded-lg tracking-tight shadow-sm">
+          Haier
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold text-slate-900 leading-tight">
+            Haier Logistics — ระบบบริหารคิวรถขนส่ง
+          </h1>
+          <p class="text-xs text-slate-500 flex items-center gap-2">
+            <span>WMS Yard &amp; Dock Queue Management</span>
+            <span class="hidden sm:inline">•</span>
+            <span id="liveClock" class="font-medium text-haier hidden sm:inline"></span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Voice Selector -->
+        <div class="flex items-center bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5">
+          <svg class="w-4 h-4 text-haier mr-1.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M11 5L6 9H2v6h4l5 4V5z"/>
+          </svg>
+          <select id="voiceSelect" onchange="onVoiceChange()" class="bg-transparent text-xs sm:text-sm text-slate-700 font-medium focus:outline-none max-w-[190px] sm:max-w-[230px]" title="เลือกเสียงประกาศ">
+            <option value="online-female">เสียงผู้หญิงไทย (ออนไลน์ 100% — แนะนำ)</option>
+          </select>
+        </div>
+
+        <button onclick="testVoice()" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium bg-haier-light text-haier hover:bg-blue-100 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H2v6h4l5 4V5z"/>
+          </svg>
+          <span>ทดสอบเสียง</span>
+        </button>
+
+        <button onclick="exportToExcel()" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition shadow-sm">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          <span>ส่งออก Excel</span>
+        </button>
+
+        <button onclick="openModal('resetModal')" class="inline-flex items-center gap-1 px-2.5 py-2 rounded-lg text-xs sm:text-sm font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition" title="รีเซ็ตข้อมูลจำลอง">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+        </button>
+
+        <button onclick="openModal('registerModal')" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-haier text-white hover:bg-haier-dark transition shadow-sm">
+          <span class="text-base leading-none">+</span>
+          <span>ลงทะเบียนรถเข้าคิว</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl w-full mx-auto px-4 sm:px-6 py-5 space-y-6 flex-1">
+
+    <!-- Active Announcement Banner -->
+    <section class="bg-gradient-to-r from-haier to-[#0073D1] rounded-2xl p-4 sm:p-5 text-white shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div class="flex items-start sm:items-center gap-3.5">
+        <div id="announceIconWrap" class="w-12 h-12 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center shrink-0">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="flex flex-wrap items-center gap-2 mb-1">
+            <span class="text-xs font-semibold uppercase tracking-wider bg-white/20 px-2.5 py-0.5 rounded-full">
+              ประกาศเรียกคิวล่าสุด
+            </span>
+            <span id="activeVoiceBadge" class="text-xs bg-emerald-400/25 border border-emerald-200/40 text-emerald-50 px-2.5 py-0.5 rounded-full">
+              เสียงหญิงไทยพร้อมใช้งาน
+            </span>
+          </div>
+          <p id="announceText" class="text-base sm:text-lg font-display font-semibold leading-snug">
+            ระบบเสียงประกาศพร้อมทำงาน — กดเรียกเข้าช่องจอดหรือกด "ประกาศซ้ำ"
+          </p>
+          <p id="announceSub" class="text-xs text-blue-100 mt-0.5">
+            อ่านป้ายทะเบียนทีละหลัก พร้อมเสียงกระดิ่งนำและลงท้ายสุภาพด้วย "ค่ะ"
+          </p>
+        </div>
+      </div>
+
+      <button onclick="repeatLastAnnouncement()" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-haier font-display font-semibold text-sm hover:bg-blue-50 transition shadow-sm shrink-0 self-end sm:self-center">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072M11 5L6 9H2v6h4l5 4V5z"/>
+        </svg>
+        <span>ประกาศซ้ำ</span>
+      </button>
+    </section>
+
+    <!-- KPI Summary Cards -->
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-xs sm:text-sm text-slate-500 font-medium">รถรอเรียกคิว</p>
+          <p class="mt-1.5 flex items-baseline gap-1.5">
+            <span id="kpiWaiting" class="text-2xl sm:text-3xl font-display font-bold text-slate-900">0</span>
+            <span class="text-xs sm:text-sm text-slate-500">คัน</span>
+          </p>
+        </div>
+        <div class="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-xs sm:text-sm text-slate-500 font-medium">กำลังโหลดหน้าท่า</p>
+          <p class="mt-1.5 flex items-baseline gap-1.5">
+            <span id="kpiLoading" class="text-2xl sm:text-3xl font-display font-bold text-haier">0</span>
+            <span class="text-xs sm:text-sm text-slate-500">คัน</span>
+          </p>
+        </div>
+        <div class="w-11 h-11 rounded-xl bg-haier-light text-haier flex items-center justify-center shrink-0">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-xs sm:text-sm text-slate-500 font-medium">โหลดเสร็จวันนี้</p>
+          <p class="mt-1.5 flex items-baseline gap-1.5">
+            <span id="kpiCompleted" class="text-2xl sm:text-3xl font-display font-bold text-emerald-600">0</span>
+            <span class="text-xs sm:text-sm text-slate-500">คัน</span>
+          </p>
+        </div>
+        <div class="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-xs sm:text-sm text-slate-500 font-medium">ช่องจอดว่างพร้อมรับ</p>
+          <p class="mt-1.5 flex items-baseline gap-1.5">
+            <span id="kpiFreeDocks" class="text-2xl sm:text-3xl font-display font-bold text-slate-900">4</span>
+            <span class="text-xs sm:text-sm text-slate-500">/ 4 ช่อง</span>
+          </p>
+        </div>
+        <div class="w-11 h-11 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 7l9-4 9 4v13a1 1 0 01-1 1h-3v-7H7v7H4a1 1 0 01-1-1V7z"/>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- Dock Doors Grid -->
+    <section>
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <h2 class="text-base sm:text-lg font-display font-bold text-slate-900">
+          สถานะช่องจอดหน้าท่า (Dock Doors 01 - 04)
+        </h2>
+        <p class="text-xs sm:text-sm text-slate-500">
+          คลิกที่ช่องจอดที่ว่างเพื่อเรียกรถเข้าเทียบท่าได้ทันที
+        </p>
+      </div>
+      <div id="docksGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+    </section>
+
+    <!-- Queue Table Section -->
+    <section class="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
+      <div class="p-4 sm:p-5 border-b border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div>
+          <h2 class="text-base sm:text-lg font-display font-bold text-slate-900">
+            รายการคิวรถทั้งหมด (Queue Management Log)
+          </h2>
+          <p class="text-xs sm:text-sm text-slate-500">
+            จัดการลำดับคิว เรียกเข้าท่า แจ้งเตือนคนขับ และตรวจสอบประวัติการโหลดสินค้า
+          </p>
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+          <!-- Search -->
+          <div class="relative">
+            <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <input id="searchInput" type="text" oninput="renderAll()" placeholder="ค้นหาทะเบียน, คิว, คนขับ..." class="w-full sm:w-60 pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-haier/30 focus:border-haier" />
+          </div>
+
+          <!-- Filter Buttons -->
+          <div id="filterTabs" class="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl text-xs font-medium">
+            <button data-filter="all" onclick="setFilter('all')" class="filter-btn px-3 py-1.5 rounded-lg transition">ทั้งหมด</button>
+            <button data-filter="waiting" onclick="setFilter('waiting')" class="filter-btn px-3 py-1.5 rounded-lg transition">รอเรียก</button>
+            <button data-filter="loading" onclick="setFilter('loading')" class="filter-btn px-3 py-1.5 rounded-lg transition">กำลังโหลด</button>
+            <button data-filter="completed" onclick="setFilter('completed')" class="filter-btn px-3 py-1.5 rounded-lg transition">เสร็จแล้ว</button>
+            <button data-filter="cancelled" onclick="setFilter('cancelled')" class="filter-btn px-3 py-1.5 rounded-lg transition">ยกเลิก</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse min-w-[820px]">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase">
+              <th class="py-3 px-4">เลขคิว</th>
+              <th class="py-3 px-4">ทะเบียน / ประเภทรถ</th>
+              <th class="py-3 px-4">คนขับ / บริษัท</th>
+              <th class="py-3 px-4">ประเภทงาน</th>
+              <th class="py-3 px-4">ช่องจอด / เลขซีล</th>
+              <th class="py-3 px-4">เวลาเข้า / ระยะเวลา</th>
+              <th class="py-3 px-4">สถานะ</th>
+              <th class="py-3 px-4 text-right">การจัดการ</th>
+            </tr>
+          </thead>
+          <tbody id="queueTableBody" class="divide-y divide-slate-100 text-sm"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm"></div>
+
+  <!-- MODAL 1: Register Truck -->
+  <div id="registerModal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4" onclick="backdropClose(event, 'registerModal')">
+    <div class="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden">
+      <div class="bg-haier text-white px-5 py-4 flex items-center justify-between">
+        <div>
+          <h3 class="font-display font-bold text-lg">ลงทะเบียนรถเข้าคิวใหม่</h3>
+          <p class="text-xs text-blue-100">บันทึกข้อมูลรถเพื่อเข้าสู่ลำดับคิวคลังสินค้า Haier</p>
+        </div>
+        <button onclick="closeModal('registerModal')" class="text-white/80 hover:text-white p-1 rounded-lg">✕</button>
+      </div>
+      <form id="registerForm" onsubmit="submitRegister(event)" class="p-5 space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">ทะเบียนรถ *</label>
+            <input id="regPlate" type="text" required placeholder="เช่น 1กก-5924 รย" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-haier/30 focus:border-haier" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">ประเภทรถ *</label>
+            <select id="regTruckType" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-haier/30 focus:border-haier">
+              <option value="รถ 4 ล้อตู้ทึบ">รถ 4 ล้อตู้ทึบ</option>
+              <option value="รถ 6 ล้อตู้ทึบ" selected>รถ 6 ล้อตู้ทึบ</option>
+              <option value="รถ 10 ล้อ">รถ 10 ล้อ</option>
+              <option value="รถพ่วง 18 ล้อ">รถพ่วง 18 ล้อ</option>
+              <option value="ตู้คอนเทนเนอร์ 20 ฟุต">ตู้คอนเทนเนอร์ 20 ฟุต</option>
+              <option value="ตู้คอนเทนเนอร์ 40 ฟุต">ตู้คอนเทนเนอร์ 40 ฟุต</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">ชื่อคนขับ *</label>
+            <input id="regDriver" type="text" required placeholder="เช่น นายสมชาย ใจดี" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-haier/30 focus:border-haier" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">เบอร์โทรศัพท์</label>
+            <input id="regPhone" type="tel" placeholder="08x-xxx-xxxx" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-haier/30 focus:border-haier" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">บริษัทขนส่ง / คู่ค้า</label>
+            <input id="regCompany" type="text" placeholder="เช่น บจก. ไทยทรานสปอร์ต" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-haier/30 focus:border-haier" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">ประเภทงาน *</label>
+            <select id="regJobType" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-haier/30 focus:border-haier">
+              <option value="รับสินค้าเข้า">รับสินค้าเข้า (Inbound)</option>
+              <option value="จ่ายสินค้าออก">จ่ายสินค้าออก (Outbound)</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">หมายเหตุ / เลขใบส่งของ (DO / PO)</label>
+          <input id="regNote" type="text" placeholder="เช่น DO-2026-8841 สินค้าเครื่องปรับอากาศ" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-haier/30 focus:border-haier" />
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+          <button type="button" onclick="closeModal('registerModal')" class="px-4 py-2 rounded-xl text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 transition">ยกเลิก</button>
+          <button type="submit" class="px-5 py-2 rounded-xl text-sm font-semibold bg-haier text-white hover:bg-haier-dark transition">บันทึกเข้าคิว</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 2: Assign Dock -->
+  <div id="assignModal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4" onclick="backdropClose(event, 'assignModal')">
+    <div class="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden">
+      <div class="bg-haier text-white px-5 py-4 flex items-center justify-between">
+        <div>
+          <h3 class="font-display font-bold text-lg">เรียกเข้าช่องจอดหน้าท่า</h3>
+          <p class="text-xs text-blue-100">เลือกคิวรถและช่องจอดที่ว่างเพื่อประกาศเรียกเข้าท่า</p>
+        </div>
+        <button onclick="closeModal('assignModal')" class="text-white/80 hover:text-white p-1 rounded-lg">✕</button>
+      </div>
+      <form onsubmit="submitAssign(event)" class="p-5 space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">เลือกรถที่รอเรียกคิว *</label>
+          <select id="assignQueueSelect" required class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-haier/30 focus:border-haier"></select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">เลือกช่องจอด (Dock Door) *</label>
+          <select id="assignDockSelect" required class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-haier/30 focus:border-haier"></select>
+        </div>
+        <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+          <input id="assignAutoAnnounce" type="checkbox" checked class="w-4 h-4 accent-haier rounded" />
+          <span>ประกาศเสียงเรียกเข้าช่องจอดอัตโนมัติทันที</span>
+        </label>
+        <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+          <button type="button" onclick="closeModal('assignModal')" class="px-4 py-2 rounded-xl text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 transition">ยกเลิก</button>
+          <button type="submit" class="px-5 py-2 rounded-xl text-sm font-semibold bg-haier text-white hover:bg-haier-dark transition">ยืนยันเรียกเข้าท่า</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 3: Complete / Seal -->
+  <div id="completeModal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4" onclick="backdropClose(event, 'completeModal')">
+    <div class="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden">
+      <div class="bg-emerald-600 text-white px-5 py-4 flex items-center justify-between">
+        <div>
+          <h3 class="font-display font-bold text-lg">ปิดตู้ / โหลดสินค้าเสร็จสิ้น</h3>
+          <p id="completeTruckLabel" class="text-xs text-emerald-100"></p>
+        </div>
+        <button onclick="closeModal('completeModal')" class="text-white/80 hover:text-white p-1 rounded-lg">✕</button>
+      </div>
+      <form onsubmit="submitComplete(event)" class="p-5 space-y-4">
+        <input id="completeQueueId" type="hidden" />
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">หมายเลขซีลตู้ (Seal Number)</label>
+          <input id="completeSealInput" type="text" placeholder="เช่น HR-SL-992041 (ไม่บังคับ)" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">หมายเหตุการปิดตู้</label>
+          <input id="completeNoteInput" type="text" placeholder="เช่น โหลดครบตามจำนวน เอกสารเรียบร้อย" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600" />
+        </div>
+        <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+          <button type="button" onclick="closeModal('completeModal')" class="px-4 py-2 rounded-xl text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 transition">ยกเลิก</button>
+          <button type="submit" class="px-5 py-2 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition">ยืนยันโหลดเสร็จ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 4: Cancel Queue -->
+  <div id="cancelModal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4" onclick="backdropClose(event, 'cancelModal')">
+    <div class="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden">
+      <div class="bg-rose-600 text-white px-5 py-4 flex items-center justify-between">
+        <div>
+          <h3 class="font-display font-bold text-lg">ยืนยันการยกเลิกคิวรถ</h3>
+          <p id="cancelTruckLabel" class="text-xs text-rose-100"></p>
+        </div>
+        <button onclick="closeModal('cancelModal')" class="text-white/80 hover:text-white p-1 rounded-lg">✕</button>
+      </div>
+      <form onsubmit="submitCancel(event)" class="p-5 space-y-4">
+        <input id="cancelQueueId" type="hidden" />
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">เหตุผลที่ยกเลิก *</label>
+          <input id="cancelReasonInput" type="text" required placeholder="เช่น คนขับแจ้งเลื่อนรอบจัดส่ง / เอกสารไม่ครบ" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/30 focus:border-rose-600" />
+        </div>
+        <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+          <button type="button" onclick="closeModal('cancelModal')" class="px-4 py-2 rounded-xl text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 transition">ปิดหน้าต่าง</button>
+          <button type="submit" class="px-5 py-2 rounded-xl text-sm font-semibold bg-rose-600 text-white hover:bg-rose-700 transition">ยืนยันยกเลิกคิว</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 5: Reset Demo Data -->
+  <div id="resetModal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4" onclick="backdropClose(event, 'resetModal')">
+    <div class="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
+      <div class="p-5 space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="font-display font-bold text-lg text-slate-900">รีเซ็ตข้อมูลจำลอง?</h3>
+          <button onclick="closeModal('resetModal')" class="text-slate-400 hover:text-slate-600">✕</button>
+        </div>
+        <p class="text-sm text-slate-600">
+          ข้อมูลคิวรถปัจจุบันทั้งหมดจะถูกล้างและกลับไปเป็นข้อมูลตัวอย่างเริ่มต้นของระบบ Haier Logistics
+        </p>
+        <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+          <button onclick="closeModal('resetModal')" class="px-4 py-2 rounded-xl text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 transition">ยกเลิก</button>
+          <button onclick="confirmReset()" class="px-4 py-2 rounded-xl text-sm font-semibold bg-haier text-white hover:bg-haier-dark transition">ยืนยันรีเซ็ต</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ============================================================
+       1. DATA & STATE MANAGEMENT (localStorage)
+    ============================================================ */
+    const STORAGE_KEY = 'haier_wms_dock_queue_v3';
+    const DOCKS = ['DOCK 01', 'DOCK 02', 'DOCK 03', 'DOCK 04'];
+    let currentFilter = 'all';
+    let lastAnnouncedItem = null;
+
+    function createDefaultData() {
+      const now = Date.now();
+      return [
+        {
+          id: 'H-001',
+          plate: '70-4419 กทม',
+          truckType: 'รถพ่วง 18 ล้อ',
+          driver: 'นายวิชัย รุ่งเรือง',
+          phone: '081-234-5678',
+          company: 'บจก. สยามเฟรท โลจิสติกส์',
+          jobType: 'จ่ายสินค้าออก',
+          status: 'completed',
+          dock: 'DOCK 02',
+          sealNo: 'HR-SL-80412',
+          note: 'ส่งสินค้าศูนย์กระจายสินค้าบางนา',
+          createdAt: now - 185 * 60000,
+          calledAt: now - 165 * 60000,
+          completedAt: now - 110 * 60000
+        },
+        {
+          id: 'H-002',
+          plate: '82-9031 ชบ',
+          truckType: 'ตู้คอนเทนเนอร์ 40 ฟุต',
+          driver: 'นายสมศักดิ์ มั่นคง',
+          phone: '089-456-7890',
+          company: 'Eastern Container Line',
+          jobType: 'รับสินค้าเข้า',
+          status: 'completed',
+          dock: 'DOCK 04',
+          sealNo: 'HR-IN-55190',
+          note: 'อะไหล่เครื่องซักผ้าจากท่าเรือแหลมฉบัง',
+          createdAt: now - 140 * 60000,
+          calledAt: now - 125 * 60000,
+          completedAt: now - 65 * 60000
+        },
+        {
+          id: 'H-003',
+          plate: '64-1105 ปราจีนบุรี',
+          truckType: 'รถ 10 ล้อ',
+          driver: 'นายเอกชัย สายลม',
+          phone: '086-771-2233',
+          company: 'บจก. ปราจีน เอ็กซ์เพรส',
+          jobType: 'รับสินค้าเข้า',
+          status: 'loading',
+          dock: 'DOCK 01',
+          sealNo: '',
+          note: 'DO-2026-4412 คอมเพรสเซอร์ตู้เย็น',
+          createdAt: now - 78 * 60000,
+          calledAt: now - 58 * 60000,
+          completedAt: null
+        },
+        {
+          id: 'H-004',
+          plate: '1กก-5924 รย',
+          truckType: 'รถ 6 ล้อตู้ทึบ',
+          driver: 'นายธนพล ศรีสุข',
+          phone: '092-334-9901',
+          company: 'ระยอง คาร์โก้ เซอร์วิส',
+          jobType: 'จ่ายสินค้าออก',
+          status: 'waiting',
+          dock: null,
+          sealNo: '',
+          note: 'รอบส่งห้างสรรพสินค้าภาคตะวันออก',
+          createdAt: now - 28 * 60000,
+          calledAt: null,
+          completedAt: null
+        },
+        {
+          id: 'H-005',
+          plate: '3ฒข-8820 กทม',
+          truckType: 'รถ 4 ล้อตู้ทึบ',
+          driver: 'นายกิตติพงษ์ แสนดี',
+          phone: '084-998-1120',
+          company: 'Haier Direct Fleet',
+          jobType: 'จ่ายสินค้าออก',
+          status: 'waiting',
+          dock: null,
+          sealNo: '',
+          note: 'งานด่วนส่งตัวแทนจำหน่าย กทม.',
+          createdAt: now - 12 * 60000,
+          calledAt: null,
+          completedAt: null
+        }
+      ];
+    }
+
+    function loadQueues() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) {
+          const seed = createDefaultData();
+          saveQueues(seed);
+          return seed;
+        }
+        return JSON.parse(raw);
+      } catch (e) {
+        return createDefaultData();
+      }
+    }
+
+    function saveQueues(data) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    let queues = loadQueues();
+
+    /* ============================================================
+       2. FEMALE-ONLY THAI SPEECH ENGINE (HYBRID 2-LAYER)
+       - Layer 1 (Default): Online Thai Female Google TTS (Free, No API Key)
+       - Layer 2 (Fallback): Local Female Thai Voice ONLY (Blocks Pattara/Niwat)
+    ============================================================ */
+    let activeAudio = null;
+    let activeSpeechId = 0;
+    let activeUtteranceRef = null;
+    let localVoices = [];
+
+    const MALE_VOICE_KEYWORDS = ['pattara', 'niwat', 'male', 'man', 'ผู้ชาย', 'ชาย'];
+    const FEMALE_VOICE_KEYWORDS = ['premwadee', 'achara', 'kanya', 'female', 'woman', 'ผู้หญิง', 'หญิง', 'google ภาษาไทย'];
+
+    function isMaleVoice(voice) {
+      const name = (voice.name || '').toLowerCase();
+      return MALE_VOICE_KEYWORDS.some(k => name.includes(k));
+    }
+
+    function isThaiVoice(voice) {
+      const lang = (voice.lang || '').toLowerCase();
+      const name = (voice.name || '').toLowerCase();
+      return lang.startsWith('th') || name.includes('thai') || name.includes('ไทย');
+    }
+
+    function getFemaleVoiceScore(voice) {
+      if (!isThaiVoice(voice)) return -100;
+      if (isMaleVoice(voice)) return -50;
+      const name = (voice.name || '').toLowerCase();
+      let score = 10;
+      if (name.includes('premwadee')) score += 50;
+      if (name.includes('achara')) score += 45;
+      if (name.includes('kanya')) score += 40;
+      if (name.includes('google')) score += 35;
+      if (FEMALE_VOICE_KEYWORDS.some(k => name.includes(k))) score += 20;
+      if (name.includes('natural') || name.includes('online')) score += 15;
+      return score;
+    }
+
+    function populateVoices() {
+      if (!('speechSynthesis' in window)) return;
+      const all = window.speechSynthesis.getVoices() || [];
+      localVoices = all.filter(isThaiVoice);
+
+      const select = document.getElementById('voiceSelect');
+      const prevValue = select.value || 'online-female';
+      select.innerHTML = '<option value="online-female">เสียงผู้หญิงไทย (ออนไลน์ 100% — แนะนำ)</option>';
+
+      const sorted = [...localVoices].sort((a, b) => getFemaleVoiceScore(b) - getFemaleVoiceScore(a));
+      sorted.forEach((v, idx) => {
+        const male = isMaleVoice(v);
+        const tag = male ? ' (ชาย — ไม่แนะนำ)' : ' (หญิงในเครื่อง)';
+        const opt = document.createElement('option');
+        opt.value = `local:${v.name}`;
+        opt.textContent = `${v.name}${tag}`;
+        select.appendChild(opt);
+      });
+
+      if ([...select.options].some(o => o.value === prevValue)) {
+        select.value = prevValue;
+      } else {
+        select.value = 'online-female';
+      }
+      updateVoiceBadge();
+    }
+
+    function onVoiceChange() {
+      updateVoiceBadge();
+      const val = document.getElementById('voiceSelect').value;
+      if (val.startsWith('local:')) {
+        const name = val.replace('local:', '');
+        const found = localVoices.find(v => v.name === name);
+        if (found && isMaleVoice(found)) {
+          showToast('เสียงที่เลือกเป็นเสียงผู้ชาย แนะนำให้ใช้ "เสียงผู้หญิงไทย (ออนไลน์ 100%)" ครับ', 'warning');
+        }
+      }
+    }
+
+    function updateVoiceBadge(customText) {
+      const badge = document.getElementById('activeVoiceBadge');
+      if (customText) {
+        badge.textContent = customText;
+        return;
+      }
+      const val = document.getElementById('voiceSelect').value;
+      if (val === 'online-female') {
+        badge.textContent = 'เสียงผู้หญิงไทย (ออนไลน์ 100%)';
+      } else {
+        const name = val.replace('local:', '');
+        badge.textContent = `เสียงในเครื่อง: ${name}`;
+      }
+    }
+
+    if ('speechSynthesis' in window) {
+      populateVoices();
+      window.speechSynthesis.onvoiceschanged = populateVoices;
+    }
+
+    // Play pleasant airport/warehouse ding-dong chime via Web Audio API
+    function playChime() {
+      return new Promise(resolve => {
+        try {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtx) { resolve(); return; }
+          const ctx = new AudioCtx();
+          const now = ctx.currentTime;
+
+          const notes = [
+            { freq: 659.25, start: 0, dur: 0.28 },   // E5
+            { freq: 523.25, start: 0.24, dur: 0.45 } // C5
+          ];
+
+          notes.forEach(n => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(n.freq, now + n.start);
+            gain.gain.setValueAtTime(0.001, now + n.start);
+            gain.gain.exponentialRampToValueAtTime(0.22, now + n.start + 0.03);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + n.start + n.dur);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now + n.start);
+            osc.stop(now + n.start + n.dur);
+          });
+
+          setTimeout(() => {
+            ctx.close().catch(() => {});
+            resolve();
+          }, 680);
+        } catch (e) {
+          resolve();
+        }
+      });
+    }
+
+    // Thai License Plate Sequential Converter
+    const DIGIT_MAP = {
+      '0': 'ศูนย์', '1': 'หนึ่ง', '2': 'สอง', '3': 'สาม', '4': 'สี่',
+      '5': 'ห้า', '6': 'หก', '7': 'เจ็ด', '8': 'แปด', '9': 'เก้า'
+    };
+
+    const CONSONANT_MAP = {
+      'ก': 'กอ', 'ข': 'ขอ', 'ฃ': 'ขอ', 'ค': 'คอ', 'ฅ': 'คอ', 'ฆ': 'คอ',
+      'ง': 'งอ', 'จ': 'จอ', 'ฉ': 'ฉอ', 'ช': 'ชอ', 'ซ': 'ซอ', 'ฌ': 'ชอ',
+      'ญ': 'ยอ', 'ฎ': 'ดอ', 'ฏ': 'ตอ', 'ฐ': 'ถอ', 'ฑ': 'ทอ', 'ฒ': 'ทอ',
+      'ณ': 'นอ', 'ด': 'ดอ', 'ต': 'ตอ', 'ถ': 'ถอ', 'ท': 'ทอ', 'ธ': 'ทอ',
+      'น': 'นอ', 'บ': 'บอ', 'ป': 'ปอ', 'ผ': 'ผอ', 'ฝ': 'ฝอ', 'พ': 'พอ',
+      'ฟ': 'ฟอ', 'ภ': 'พอ', 'ม': 'มอ', 'ย': 'ยอ', 'ร': 'รอ', 'ล': 'ลอ',
+      'ว': 'วอ', 'ศ': 'สอ', 'ษ': 'สอ', 'ส': 'สอ', 'ห': 'หอ', 'ฬ': 'ลอ',
+      'อ': 'ออ', 'ฮ': 'ฮอ'
+    };
+
+    const PROVINCE_MAP = {
+      'กทม': 'กรุงเทพมหานคร', 'กท': 'กรุงเทพมหานคร', 'รย': 'ระยอง', 'ชบ': 'ชลบุรี',
+      'ปจ': 'ปราจีนบุรี', 'ฉช': 'ฉะเชิงเทรา', 'สป': 'สมุทรปราการ', 'ปท': 'ปทุมธานี',
+      'นบ': 'นนทบุรี', 'สค': 'สมุทรสาคร', 'นฐ': 'นครปฐม', 'อย': 'พระนครศรีอยุธยา',
+      'สบ': 'สระบุรี', 'นม': 'นครราชสีมา', 'ขก': 'ขอนแก่น', 'อด': 'อุดรธานี',
+      'อบ': 'อุบลราชธานี', 'ชม': 'เชียงใหม่', 'ชร': 'เชียงราย', 'สข': 'สงขลา',
+      'ภก': 'ภูเก็ต', 'สฎ': 'สุราษฎร์ธานี', 'จท': 'จันทบุรี', 'ตร': 'ตราด',
+      'สก': 'สระแก้ว', 'นย': 'นครนายก', 'ลพ': 'ลพบุรี', 'รบ': 'ราชบุรี', 'กจ': 'กาญจนบุรี'
+    };
+
+    function formatPlateForSpeech(rawPlate) {
+      const cleaned = (rawPlate || '').trim().replace(/\s+/g, ' ');
+      const parts = cleaned.split(' ');
+      let provinceSpoken = '';
+      let mainPart = cleaned;
+
+      if (parts.length >= 2) {
+        const lastToken = parts[parts.length - 1].replace(/\./g, '');
+        if (PROVINCE_MAP[lastToken]) {
+          provinceSpoken = PROVINCE_MAP[lastToken];
+          mainPart = parts.slice(0, -1).join(' ');
+        } else if (lastToken.length >= 4 && !/\d/.test(lastToken)) {
+          provinceSpoken = lastToken;
+          mainPart = parts.slice(0, -1).join(' ');
+        }
+      }
+
+      const segments = mainPart.split('-').map(seg => {
+        const spokenChars = [];
+        for (const ch of seg.trim()) {
+          if (DIGIT_MAP[ch]) spokenChars.push(DIGIT_MAP[ch]);
+          else if (CONSONANT_MAP[ch]) spokenChars.push(CONSONANT_MAP[ch]);
+          else if (/[a-zA-Z]/.test(ch)) spokenChars.push(ch.toUpperCase());
+        }
+        return spokenChars.join(' ');
+      }).filter(Boolean);
+
+      let result = segments.join(' , ');
+      if (provinceSpoken) result += ` , จังหวัด${provinceSpoken}`;
+      return result;
+    }
+
+    function formatDockForSpeech(dockName) {
+      const match = (dockName || '').match(/\d+/);
+      if (!match) return dockName;
+      const num = parseInt(match[0], 10);
+      return `ช่องจอดหมายเลข ${DIGIT_MAP[String(num)] || num}`;
+    }
+
+    function splitTextChunks(text, maxLen = 150) {
+      const pieces = text.split(/(?<=[,।!?.])\s+|,\s*/).filter(Boolean);
+      const chunks = [];
+      let current = '';
+      for (const p of pieces) {
+        if ((current + ' ' + p).trim().length <= maxLen) {
+          current = (current + ' ' + p).trim();
+        } else {
+          if (current) chunks.push(current);
+          current = p.trim();
+        }
+      }
+      if (current) chunks.push(current);
+      return chunks.length ? chunks : [text];
+    }
+
+    function stopAllSpeech() {
+      activeSpeechId++;
+      if (activeAudio) {
+        activeAudio.pause();
+        activeAudio.src = '';
+        activeAudio = null;
+      }
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      document.getElementById('announceIconWrap').classList.remove('speaking-pulse');
+    }
+
+    function speakOnlineGoogleTTS(text, speechId) {
+      return new Promise((resolve, reject) => {
+        const chunks = splitTextChunks(text, 145);
+        let index = 0;
+
+        function playNext() {
+          if (speechId !== activeSpeechId) { resolve(); return; }
+          if (index >= chunks.length) { resolve(); return; }
+
+          const chunk = chunks[index++];
+          const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=th&client=tw-ob&q=${encodeURIComponent(chunk)}`;
+          const audio = new Audio(url);
+          activeAudio = audio;
+
+          audio.onended = () => {
+            if (speechId !== activeSpeechId) { resolve(); return; }
+            setTimeout(playNext, 120);
+          };
+          audio.onerror = () => reject(new Error('Google TTS blocked or offline'));
+
+          const playPromise = audio.play();
+          if (playPromise && playPromise.catch) {
+            playPromise.catch(err => reject(err));
+          }
+        }
+        playNext();
+      });
+    }
+
+    function speakLocalFemaleFallback(text, speechId, forcedVoiceName = null) {
+      return new Promise(resolve => {
+        if (!('speechSynthesis' in window)) { resolve(); return; }
+        window.speechSynthesis.cancel();
+
+        setTimeout(() => {
+          if (speechId !== activeSpeechId) { resolve(); return; }
+          const utter = new SpeechSynthesisUtterance(text);
+          utter.lang = 'th-TH';
+          utter.rate = 0.96;
+
+          let chosen = null;
+          if (forcedVoiceName) {
+            chosen = localVoices.find(v => v.name === forcedVoiceName) || null;
+          } else {
+            // Strictly select ONLY non-male Thai voice for auto-fallback
+            const femaleCandidates = localVoices
+              .filter(v => !isMaleVoice(v))
+              .sort((a, b) => getFemaleVoiceScore(b) - getFemaleVoiceScore(a));
+            chosen = femaleCandidates[0] || null;
+          }
+
+          if (chosen) {
+            utter.voice = chosen;
+            utter.pitch = isMaleVoice(chosen) ? 1.25 : 1.08;
+            updateVoiceBadge(`เสียงในเครื่อง: ${chosen.name}`);
+          } else {
+            utter.pitch = 1.18;
+            updateVoiceBadge('เสียงหญิงไทย (ระบบสำรอง)');
+          }
+
+          activeUtteranceRef = utter;
+          utter.onend = () => resolve();
+          utter.onerror = () => resolve();
+          window.speechSynthesis.speak(utter);
+        }, 90);
+      });
+    }
+
+    async function speakThaiAnnouncement(spokenText, displayTitle, displaySub) {
+      stopAllSpeech();
+      const myId = activeSpeechId;
+
+      if (displayTitle) document.getElementById('announceText').textContent = displayTitle;
+      if (displaySub) document.getElementById('announceSub').textContent = displaySub;
+
+      const iconWrap = document.getElementById('announceIconWrap');
+      iconWrap.classList.add('speaking-pulse');
+
+      await playChime();
+      if (myId !== activeSpeechId) return;
+
+      const mode = document.getElementById('voiceSelect').value;
+
+      try {
+        if (mode === 'online-female') {
+          updateVoiceBadge('กำลังประกาศ: เสียงผู้หญิงไทย (ออนไลน์)');
+          await speakOnlineGoogleTTS(spokenText, myId);
+        } else {
+          const voiceName = mode.replace('local:', '');
+          await speakLocalFemaleFallback(spokenText, myId, voiceName);
+        }
+      } catch (err) {
+        if (myId === activeSpeechId) {
+          await speakLocalFemaleFallback(spokenText, myId, null);
+        }
+      } finally {
+        if (myId === activeSpeechId) {
+          iconWrap.classList.remove('speaking-pulse');
+          updateVoiceBadge();
+        }
+      }
+    }
+
+    function announceTruck(item) {
+      lastAnnouncedItem = item;
+      const plateSpoken = formatPlateForSpeech(item.plate);
+      const dockSpoken = formatDockForSpeech(item.dock);
+      const spokenText = `ขอเชิญรถทะเบียน ${plateSpoken} , เข้าเทียบท่าที่ ${dockSpoken} , เพื่อ${item.jobType} , ขอบคุณค่ะ`;
+      const displayTitle = `คิว ${item.id} — ทะเบียน ${item.plate} เข้าเทียบท่าที่ ${item.dock}`;
+      const displaySub = `คนขับ: ${item.driver} (${item.truckType}) • ${item.jobType} • ประกาศเมื่อ ${formatTime(Date.now())}`;
+      speakThaiAnnouncement(spokenText, displayTitle, displaySub);
+    }
+
+    function repeatLastAnnouncement() {
+      if (lastAnnouncedItem) {
+        announceTruck(lastAnnouncedItem);
+        return;
+      }
+      const loadingTruck = queues.find(q => q.status === 'loading');
+      if (loadingTruck) {
+        announceTruck(loadingTruck);
+      } else {
+        testVoice();
+      }
+    }
+
+    function testVoice() {
+      const samplePlate = formatPlateForSpeech('1กก-5924 รย');
+      const text = `ทดสอบระบบเสียงประกาศคลังสินค้าไฮเออร์ , ขอเชิญรถทะเบียน ${samplePlate} , เข้าเทียบท่าที่ ช่องจอดหมายเลข หนึ่ง , ขอบคุณค่ะ`;
+      speakThaiAnnouncement(
+        text,
+        'ทดสอบเสียงประกาศ — ทะเบียน 1กก-5924 รย → DOCK 01',
+        'กำลังทดสอบเสียงกระดิ่งและเสียงผู้หญิงภาษาไทย (อ่านป้ายทะเบียนทีละหลัก)'
+      );
+    }
+
+    /* ============================================================
+       3. UI RENDERING
+    ============================================================ */
+    function formatTime(ts) {
+      if (!ts) return '-';
+      return new Date(ts).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function formatDuration(startTs, endTs) {
+      if (!startTs) return '-';
+      const end = endTs || Date.now();
+      const mins = Math.max(1, Math.round((end - startTs) / 60000));
+      if (mins < 60) return `${mins} นาที`;
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      return `${h} ชม. ${m} นาที`;
+    }
+
+    function statusMeta(status) {
+      switch (status) {
+        case 'waiting': return { label: 'รอเรียกคิว', cls: 'bg-amber-50 text-amber-700 border-amber-200' };
+        case 'loading': return { label: 'กำลังโหลด', cls: 'bg-blue-50 text-haier border-blue-200' };
+        case 'completed': return { label: 'โหลดเสร็จแล้ว', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+        case 'cancelled': return { label: 'ยกเลิกคิว', cls: 'bg-rose-50 text-rose-700 border-rose-200' };
+        default: return { label: status, cls: 'bg-slate-100 text-slate-600 border-slate-200' };
+      }
+    }
+
+    function renderKPIs() {
+      const waiting = queues.filter(q => q.status === 'waiting').length;
+      const loading = queues.filter(q => q.status === 'loading').length;
+      const completed = queues.filter(q => q.status === 'completed').length;
+      const occupiedDocks = new Set(queues.filter(q => q.status === 'loading' && q.dock).map(q => q.dock));
+      const freeDocks = DOCKS.length - occupiedDocks.size;
+
+      document.getElementById('kpiWaiting').textContent = waiting;
+      document.getElementById('kpiLoading').textContent = loading;
+      document.getElementById('kpiCompleted').textContent = completed;
+      document.getElementById('kpiFreeDocks').textContent = freeDocks;
+    }
+
+    function renderDocks() {
+      const grid = document.getElementById('docksGrid');
+      grid.innerHTML = '';
+
+      DOCKS.forEach(dock => {
+        const truck = queues.find(q => q.status === 'loading' && q.dock === dock);
+        if (truck) {
+          grid.innerHTML += `
+            <div class="bg-white rounded-2xl p-4 border-2 border-haier/30 shadow-sm flex flex-col justify-between gap-3">
+              <div>
+                <div class="flex items-center justify-between mb-3">
+                  <span class="font-display font-bold text-slate-900 flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-haier animate-pulse"></span>
+                    ${dock}
+                  </span>
+                  <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-haier">กำลังโหลด</span>
+                </div>
+                <div class="flex items-center justify-between gap-2 mb-2.5">
+                  <span class="plate-badge text-sm text-slate-900">${escapeHtml(truck.plate)}</span>
+                  <span class="text-xs font-display font-bold text-haier">${escapeHtml(truck.id)}</span>
+                </div>
+                <div class="flex items-center justify-between text-xs text-slate-600">
+                  <span class="truncate">👤 ${escapeHtml(truck.driver)}</span>
+                  <span class="font-semibold text-haier shrink-0 ml-2">${escapeHtml(truck.jobType)}</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-1 truncate">${escapeHtml(truck.truckType)} • ${escapeHtml(truck.company || '-')}</p>
+              </div>
+              <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                <span class="text-xs font-medium text-slate-500">⏱ ${formatDuration(truck.calledAt)}</span>
+                <div class="flex items-center gap-1.5">
+                  <button onclick="callTruckSound('${truck.id}')" class="p-2 rounded-lg bg-haier-light text-haier hover:bg-blue-100 transition" title="ประกาศเรียกซ้ำ">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072M11 5L6 9H2v6h4l5 4V5z"/>
+                    </svg>
+                  </button>
+                  <button onclick="openCompleteModal('${truck.id}')" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition">
+                    ปิดตู้ / โหลดเสร็จ
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+        } else {
+          grid.innerHTML += `
+            <div onclick="openAssignModal(null, '${dock}')" class="bg-white rounded-2xl p-4 border-2 border-dashed border-slate-200 hover:border-haier hover:bg-haier-soft/40 cursor-pointer transition flex flex-col justify-between min-h-[188px]">
+              <div class="flex items-center justify-between">
+                <span class="font-display font-bold text-slate-800">${dock}</span>
+                <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700">ว่าง</span>
+              </div>
+              <div class="my-4 text-center">
+                <div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-500 mx-auto flex items-center justify-center text-xl font-bold mb-2">+</div>
+                <p class="text-sm font-display font-semibold text-slate-700">เรียกรถเข้าช่องนี้</p>
+              </div>
+              <p class="text-xs text-center text-slate-400 border-t border-slate-100 pt-2.5">พร้อมรับรถเข้าเทียบท่า</p>
+            </div>
+          `;
+        }
+      });
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('queueTableBody');
+      const keyword = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+
+      const filtered = queues.filter(item => {
+        if (currentFilter !== 'all' && item.status !== currentFilter) return false;
+        if (!keyword) return true;
+        return [item.id, item.plate, item.driver, item.company, item.truckType, item.dock, item.sealNo, item.note]
+          .some(v => (v || '').toLowerCase().includes(keyword));
+      });
+
+      // Update filter button styles
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        if (btn.dataset.filter === currentFilter) {
+          btn.className = 'filter-btn px-3 py-1.5 rounded-lg transition bg-white text-haier font-semibold shadow-xs';
+        } else {
+          btn.className = 'filter-btn px-3 py-1.5 rounded-lg transition text-slate-600 hover:text-slate-900';
+        }
+      });
+
+      if (!filtered.length) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8" class="py-10 text-center text-slate-400">
+              ไม่พบรายการคิวรถตามเงื่อนไขที่ค้นหา
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(item => {
+        const meta = statusMeta(item.status);
+        let actions = '';
+
+        if (item.status === 'waiting') {
+          actions = `
+            <button onclick="openAssignModal('${item.id}', null)" class="px-3 py-1.5 rounded-lg bg-haier text-white text-xs font-semibold hover:bg-haier-dark transition">เรียกเข้าท่า</button>
+            <button onclick="notifyDriver('${item.id}')" class="px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-medium hover:bg-slate-200 transition" title="คัดลอกข้อความแจ้งเตือน LINE/SMS">แจ้งเตือน</button>
+            <button onclick="openCancelModal('${item.id}')" class="px-2.5 py-1.5 rounded-lg bg-rose-50 text-rose-600 text-xs font-medium hover:bg-rose-100 transition">ยกเลิก</button>
+          `;
+        } else if (item.status === 'loading') {
+          actions = `
+            <button onclick="callTruckSound('${item.id}')" class="px-2.5 py-1.5 rounded-lg bg-haier-light text-haier text-xs font-semibold hover:bg-blue-100 transition">ประกาศซ้ำ</button>
+            <button onclick="openCompleteModal('${item.id}')" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition">ปิดตู้</button>
+            <button onclick="openCancelModal('${item.id}')" class="px-2.5 py-1.5 rounded-lg bg-rose-50 text-rose-600 text-xs font-medium hover:bg-rose-100 transition">ยกเลิก</button>
+          `;
+        } else {
+          actions = `
+            <button onclick="notifyDriver('${item.id}')" class="px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-xs font-medium hover:bg-slate-200 transition">คัดลอกสรุป</button>
+          `;
+        }
+
+        return `
+          <tr class="hover:bg-slate-50/80 transition">
+            <td class="py-3.5 px-4 font-display font-bold text-haier">${escapeHtml(item.id)}</td>
+            <td class="py-3.5 px-4">
+              <div class="plate-badge text-xs text-slate-900">${escapeHtml(item.plate)}</div>
+              <div class="text-xs text-slate-500 mt-1">${escapeHtml(item.truckType)}</div>
+            </td>
+            <td class="py-3.5 px-4">
+              <div class="font-semibold text-slate-800">${escapeHtml(item.driver)}</div>
+              <div class="text-xs text-slate-500">${escapeHtml(item.company || '-')} ${item.phone ? '• ' + escapeHtml(item.phone) : ''}</div>
+            </td>
+            <td class="py-3.5 px-4">
+              <span class="text-xs font-semibold px-2.5 py-1 rounded-lg ${item.jobType === 'รับสินค้าเข้า' ? 'bg-indigo-50 text-indigo-700' : 'bg-cyan-50 text-cyan-700'}">
+                ${escapeHtml(item.jobType)}
+              </span>
+              ${item.note ? `<div class="text-xs text-slate-400 mt-1 max-w-[180px] truncate" title="${escapeHtml(item.note)}">${escapeHtml(item.note)}</div>` : ''}
+            </td>
+            <td class="py-3.5 px-4">
+              <div class="font-display font-semibold text-slate-800">${item.dock ? escapeHtml(item.dock) : '<span class="text-slate-400 font-normal">ยังไม่ระบุ</span>'}</div>
+              ${item.sealNo ? `<div class="text-xs text-emerald-700 font-medium mt-0.5">ซีล: ${escapeHtml(item.sealNo)}</div>` : ''}
+            </td>
+            <td class="py-3.5 px-4 text-xs text-slate-600">
+              <div>เข้า: <span class="font-semibold">${formatTime(item.createdAt)}</span></div>
+              <div class="text-slate-400 mt-0.5">รวม: ${formatDuration(item.createdAt, item.completedAt)}</div>
+            </td>
+            <td class="py-3.5 px-4">
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${meta.cls}">
+                ${meta.label}
+              </span>
+            </td>
+            <td class="py-3.5 px-4 text-right">
+              <div class="inline-flex flex-wrap justify-end gap-1.5">${actions}</div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderAll() {
+      renderKPIs();
+      renderDocks();
+      renderTable();
+    }
+
+    function setFilter(filter) {
+      currentFilter = filter;
+      renderTable();
+    }
+
+    /* ============================================================
+       4. MODALS & WORKFLOW ACTIONS
+    ============================================================ */
+    function openModal(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.remove('hidden');
+      el.classList.add('flex');
+    }
+
+    function closeModal(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.add('hidden');
+      el.classList.remove('flex');
+    }
+
+    function backdropClose(e, id) {
+      if (e.target === e.currentTarget) closeModal(id);
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        ['registerModal', 'assignModal', 'completeModal', 'cancelModal', 'resetModal'].forEach(closeModal);
+      }
+    });
+
+    function generateNextId() {
+      const nums = queues.map(q => parseInt((q.id || '').replace(/\D/g, ''), 10) || 0);
+      const next = (nums.length ? Math.max(...nums) : 0) + 1;
+      return `H-${String(next).padStart(3, '0')}`;
+    }
+
+    function submitRegister(e) {
+      e.preventDefault();
+      const newTruck = {
+        id: generateNextId(),
+        plate: document.getElementById('regPlate').value.trim(),
+        truckType: document.getElementById('regTruckType').value,
+        driver: document.getElementById('regDriver').value.trim(),
+        phone: document.getElementById('regPhone').value.trim(),
+        company: document.getElementById('regCompany').value.trim(),
+        jobType: document.getElementById('regJobType').value,
+        note: document.getElementById('regNote').value.trim(),
+        status: 'waiting',
+        dock: null,
+        sealNo: '',
+        createdAt: Date.now(),
+        calledAt: null,
+        completedAt: null
+      };
+
+      queues.unshift(newTruck);
+      saveQueues(queues);
+      document.getElementById('registerForm').reset();
+      closeModal('registerModal');
+      renderAll();
+      showToast(`ลงทะเบียนคิว ${newTruck.id} (${newTruck.plate}) เรียบร้อยแล้ว`, 'success');
+    }
+
+    function openAssignModal(queueId, dockName) {
+      const waitingList = queues.filter(q => q.status === 'waiting');
+      const occupied = new Set(queues.filter(q => q.status === 'loading' && q.dock).map(q => q.dock));
+      const freeDocks = DOCKS.filter(d => !occupied.has(d));
+
+      if (!waitingList.length) {
+        showToast('ไม่มีรถที่รอเรียกคิวในขณะนี้ กรุณาลงทะเบียนรถใหม่ก่อนครับ', 'warning');
+        return;
+      }
+      if (!freeDocks.length) {
+        showToast('ช่องจอดหน้าท่าเต็มครบทั้ง 4 ช่องแล้ว กรุณาปิดตู้ก่อนเรียกรถเพิ่ม', 'warning');
+        return;
+      }
+
+      const qSel = document.getElementById('assignQueueSelect');
+      qSel.innerHTML = waitingList.map(q =>
+        `<option value="${q.id}">${q.id} — ${escapeHtml(q.plate)} (${escapeHtml(q.driver)} • ${escapeHtml(q.jobType)})</option>`
+      ).join('');
+      if (queueId) qSel.value = queueId;
+
+      const dSel = document.getElementById('assignDockSelect');
+      dSel.innerHTML = freeDocks.map(d => `<option value="${d}">${d} (ว่างพร้อมรับ)</option>`).join('');
+      if (dockName && freeDocks.includes(dockName)) dSel.value = dockName;
+
+      openModal('assignModal');
+    }
+
+    function submitAssign(e) {
+      e.preventDefault();
+      const qId = document.getElementById('assignQueueSelect').value;
+      const dock = document.getElementById('assignDockSelect').value;
+      const autoSpeak = document.getElementById('assignAutoAnnounce').checked;
+
+      const item = queues.find(q => q.id === qId);
+      if (!item) return;
+
+      item.status = 'loading';
+      item.dock = dock;
+      item.calledAt = Date.now();
+      saveQueues(queues);
+      closeModal('assignModal');
+      renderAll();
+      showToast(`เรียกคิว ${item.id} (${item.plate}) เข้า ${dock} แล้ว`, 'success');
+
+      if (autoSpeak) announceTruck(item);
+    }
+
+    function callTruckSound(queueId) {
+      const item = queues.find(q => q.id === queueId);
+      if (item) announceTruck(item);
+    }
+
+    function openCompleteModal(queueId) {
+      const item = queues.find(q => q.id === queueId);
+      if (!item) return;
+      document.getElementById('completeQueueId').value = item.id;
+      document.getElementById('completeTruckLabel').textContent = `คิว ${item.id} • ทะเบียน ${item.plate} (${item.dock})`;
+      document.getElementById('completeSealInput').value = item.sealNo || '';
+      document.getElementById('completeNoteInput').value = item.note || '';
+      openModal('completeModal');
+    }
+
+    function submitComplete(e) {
+      e.preventDefault();
+      const qId = document.getElementById('completeQueueId').value;
+      const item = queues.find(q => q.id === qId);
+      if (!item) return;
+
+      item.status = 'completed';
+      item.sealNo = document.getElementById('completeSealInput').value.trim();
+      const note = document.getElementById('completeNoteInput').value.trim();
+      if (note) item.note = note;
+      item.completedAt = Date.now();
+
+      saveQueues(queues);
+      closeModal('completeModal');
+      renderAll();
+      showToast(`ปิดตู้คิว ${item.id} (${item.plate}) เรียบร้อย ช่อง ${item.dock} ว่างพร้อมรับรถใหม่`, 'success');
+    }
+
+    function openCancelModal(queueId) {
+      const item = queues.find(q => q.id === queueId);
+      if (!item) return;
+      document.getElementById('cancelQueueId').value = item.id;
+      document.getElementById('cancelTruckLabel').textContent = `คิว ${item.id} • ทะเบียน ${item.plate}`;
+      document.getElementById('cancelReasonInput').value = '';
+      openModal('cancelModal');
+    }
+
+    function submitCancel(e) {
+      e.preventDefault();
+      const qId = document.getElementById('cancelQueueId').value;
+      const reason = document.getElementById('cancelReasonInput').value.trim();
+      const item = queues.find(q => q.id === qId);
+      if (!item) return;
+
+      item.status = 'cancelled';
+      item.note = reason ? `[ยกเลิก: ${reason}] ${item.note || ''}`.trim() : item.note;
+      item.completedAt = Date.now();
+
+      saveQueues(queues);
+      closeModal('cancelModal');
+      renderAll();
+      showToast(`ยกเลิกคิว ${item.id} เรียบร้อยแล้ว`, 'warning');
+    }
+
+    function confirmReset() {
+      stopAllSpeech();
+      queues = createDefaultData();
+      saveQueues(queues);
+      lastAnnouncedItem = null;
+      closeModal('resetModal');
+      renderAll();
+      showToast('รีเซ็ตข้อมูลกลับสู่ค่าเริ่มต้นเรียบร้อยแล้ว', 'success');
+    }
+
+    function notifyDriver(queueId) {
+      const item = queues.find(q => q.id === queueId);
+      if (!item) return;
+      const meta = statusMeta(item.status);
+      const msg = [
+        `[Haier Logistics แจ้งสถานะคิวรถ]`,
+        `คิว: ${item.id} | ทะเบียน: ${item.plate}`,
+        `คนขับ: ${item.driver} (${item.jobType})`,
+        `สถานะ: ${meta.label}${item.dock ? ' | ช่องจอด: ' + item.dock : ''}`,
+        item.sealNo ? `เลขซีล: ${item.sealNo}` : ''
+      ].filter(Boolean).join('\n');
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(msg)
+          .then(() => showToast('คัดลอกข้อความแจ้งเตือนแล้ว สามารถส่งเข้า LINE หรืออีเมลได้ทันที', 'success'))
+          .catch(() => showToast(msg, 'success'));
+      } else {
+        showToast('พร้อมส่งข้อความแจ้งเตือนคิว ' + item.id, 'success');
+      }
+    }
+
+    /* ============================================================
+       5. EXCEL (.XLSX) EXPORT WITH EXCELJS (2 SHEETS)
+    ============================================================ */
+    async function exportToExcel() {
+      if (typeof ExcelJS === 'undefined') {
+        showToast('กำลังโหลดไลบรารีส่งออก Excel กรุณารอสักครู่แล้วกดอีกครั้ง', 'warning');
+        return;
+      }
+
+      try {
+        const wb = new ExcelJS.Workbook();
+        wb.creator = 'Haier Logistics WMS';
+        wb.created = new Date();
+
+        const haierBlue = 'FF005AAB';
+        const softBlue = 'FFEBF4FC';
+        const borderThin = {
+          top: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+          left: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+          bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+          right: { style: 'thin', color: { argb: 'FFD1D5DB' } }
+        };
+
+        // --- SHEET 1: SUMMARY ---
+        const ws1 = wb.addWorksheet('สรุปภาพรวม (Summary)');
+        ws1.mergeCells('A1:D1');
+        ws1.getCell('A1').value = 'HAIER LOGISTICS — รายงานสรุปสถานะคิวรถและช่องจอดหน้าท่า';
+        ws1.getCell('A1').font = { name: 'Sarabun', size: 15, bold: true, color: { argb: 'FFFFFFFF' } };
+        ws1.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: haierBlue } };
+        ws1.getCell('A1').alignment = { vertical: 'middle', horizontal: 'center' };
+        ws1.getRow(1).height = 32;
+
+        ws1.mergeCells('A2:D2');
+        ws1.getCell('A2').value = `วันเวลาที่ส่งออกรายงาน: ${new Date().toLocaleString('th-TH')}`;
+        ws1.getCell('A2').font = { name: 'Sarabun', size: 11, italic: true, color: { argb: 'FF475569' } };
+        ws1.getCell('A2').alignment = { vertical: 'middle', horizontal: 'center' };
+        ws1.getRow(2).height = 22;
+
+        const total = queues.length || 1;
+        const waitingCnt = queues.filter(q => q.status === 'waiting').length;
+        const loadingCnt = queues.filter(q => q.status === 'loading').length;
+        const completedCnt = queues.filter(q => q.status === 'completed').length;
+        const cancelledCnt = queues.filter(q => q.status === 'cancelled').length;
+
+        ws1.addRow([]);
+        const kpiHeader = ws1.addRow(['ตัวชี้วัด (KPI Status)', 'จำนวน (คัน)', 'สัดส่วน (%)', 'หมายเหตุ']);
+        kpiHeader.eachCell(c => {
+          c.font = { name: 'Sarabun', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: haierBlue } };
+          c.alignment = { vertical: 'middle', horizontal: 'center' };
+          c.border = borderThin;
+        });
+
+        const kpiRows = [
+          ['รถรอเรียกคิว (Waiting)', waitingCnt, `${((waitingCnt / total) * 100).toFixed(1)}%`, 'รอจัดสรรเข้าช่องจอด'],
+          ['กำลังโหลดหน้าท่า (Loading)', loadingCnt, `${((loadingCnt / total) * 100).toFixed(1)}%`, 'อยู่ระหว่างปฏิบัติงานหน้าท่า'],
+          ['โหลดเสร็จสิ้น (Completed)', completedCnt, `${((completedCnt / total) * 100).toFixed(1)}%`, 'ปิดตู้เรียบร้อยแล้ว'],
+          ['ยกเลิกคิว (Cancelled)', cancelledCnt, `${((cancelledCnt / total) * 100).toFixed(1)}%`, 'ถูกยกเลิกรายการ'],
+          ['รวมทั้งหมด (Total)', queues.length, '100.0%', 'จำนวนรถที่ลงทะเบียนทั้งหมด']
+        ];
+
+        kpiRows.forEach((r, idx) => {
+          const row = ws1.addRow(r);
+          const isTotal = idx === kpiRows.length - 1;
+          row.eachCell((c, colNum) => {
+            c.font = { name: 'Sarabun', size: 11, bold: isTotal };
+            c.border = borderThin;
+            if (isTotal) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: softBlue } };
+            c.alignment = { vertical: 'middle', horizontal: colNum === 2 || colNum === 3 ? 'center' : 'left' };
+          });
+        });
+
+        ws1.addRow([]);
+        const dockHeader = ws1.addRow(['ช่องจอด (Dock Door)', 'สถานะปัจจุบัน', 'ทะเบียนรถที่ใช้งาน', 'คนขับ / ประเภทงาน']);
+        dockHeader.eachCell(c => {
+          c.font = { name: 'Sarabun', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: haierBlue } };
+          c.alignment = { vertical: 'middle', horizontal: 'center' };
+          c.border = borderThin;
+        });
+
+        DOCKS.forEach(d => {
+          const active = queues.find(q => q.status === 'loading' && q.dock === d);
+          const row = ws1.addRow([
+            d,
+            active ? 'กำลังโหลดสินค้า' : 'ว่างพร้อมรับ',
+            active ? `${active.plate} (${active.id})` : '-',
+            active ? `${active.driver} — ${active.jobType}` : '-'
+          ]);
+          row.eachCell((c, colNum) => {
+            c.font = { name: 'Sarabun', size: 11 };
+            c.border = borderThin;
+            c.alignment = { vertical: 'middle', horizontal: colNum <= 2 ? 'center' : 'left' };
+            if (colNum === 2) {
+              c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: active ? 'FFDBEAFE' : 'FFD1FAE5' } };
+            }
+          });
+        });
+
+        ws1.columns = [{ width: 28 }, { width: 18 }, { width: 24 }, { width: 34 }];
+
+        // --- SHEET 2: QUEUE LOG ---
+        const ws2 = wb.addWorksheet('รายการคิวรถทั้งหมด (Queue Log)');
+        ws2.mergeCells('A1:K1');
+        ws2.getCell('A1').value = 'HAIER LOGISTICS — บันทึกรายการคิวรถขนส่งทั้งหมด';
+        ws2.getCell('A1').font = { name: 'Sarabun', size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
+        ws2.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: haierBlue } };
+        ws2.getCell('A1').alignment = { vertical: 'middle', horizontal: 'center' };
+        ws2.getRow(1).height = 30;
+
+        ws2.addRow([]);
+        const headers = ['เลขคิว', 'ทะเบียนรถ', 'ประเภทรถ', 'ชื่อคนขับ', 'บริษัทขนส่ง', 'ประเภทงาน', 'ช่องจอด', 'เลขซีล', 'เวลาลงทะเบียน', 'ระยะเวลารวม', 'สถานะ'];
+        const hRow = ws2.addRow(headers);
+        hRow.height = 24;
+        hRow.eachCell(c => {
+          c.font = { name: 'Sarabun', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: haierBlue } };
+          c.alignment = { vertical: 'middle', horizontal: 'center' };
+          c.border = borderThin;
+        });
+
+        const statusColors = {
+          waiting: 'FFFEF3C7',
+          loading: 'FFDBEAFE',
+          completed: 'FFD1FAE5',
+          cancelled: 'FFFEE2E2'
+        };
+
+        queues.forEach((q, idx) => {
+          const row = ws2.addRow([
+            q.id,
+            q.plate,
+            q.truckType,
+            q.driver,
+            q.company || '-',
+            q.jobType,
+            q.dock || '-',
+            q.sealNo || '-',
+            formatTime(q.createdAt),
+            formatDuration(q.createdAt, q.completedAt),
+            statusMeta(q.status).label
+          ]);
+          const altFill = idx % 2 === 1 ? 'FFF8FAFC' : 'FFFFFFFF';
+          row.eachCell((c, colNum) => {
+            c.font = { name: 'Sarabun', size: 11 };
+            c.border = borderThin;
+            c.alignment = { vertical: 'middle', horizontal: [1, 7, 9, 10, 11].includes(colNum) ? 'center' : 'left' };
+            if (colNum === 11) {
+              c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: statusColors[q.status] || altFill } };
+              c.font = { name: 'Sarabun', size: 11, bold: true };
+            } else {
+              c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: altFill } };
+            }
+          });
+        });
+
+        ws2.autoFilter = { from: 'A3', to: 'K3' };
+        ws2.views = [{ state: 'frozen', ySplit: 3 }];
+
+        // Auto-fit column widths
+        ws2.columns.forEach(col => {
+          let maxLen = 12;
+          col.eachCell({ includeEmpty: false }, (cell, rowNum) => {
+            if (rowNum <= 2) return;
+            const len = String(cell.value || '').length;
+            if (len > maxLen) maxLen = len;
+          });
+          col.width = Math.min(maxLen + 5, 34);
+        });
+
+        const buffer = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const today = new Date().toISOString().slice(0, 10);
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `Haier_Dock_Queue_Report_${today}.xlsx`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+
+        showToast(`ส่งออกไฟล์ Haier_Dock_Queue_Report_${today}.xlsx เรียบร้อยแล้ว`, 'success');
+      } catch (err) {
+        showToast('ไม่สามารถสร้างไฟล์ Excel ได้: ' + err.message, 'warning');
+      }
+    }
+
+    /* ============================================================
+       6. UTILITIES & INIT
+    ============================================================ */
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toastContainer');
+      const div = document.createElement('div');
+      const color = type === 'warning'
+        ? 'bg-amber-600 text-white'
+        : 'bg-slate-900 text-white';
+      div.className = `${color} px-4 py-3 rounded-xl shadow-lg text-sm font-medium transition-opacity duration-300`;
+      div.textContent = message;
+      container.appendChild(div);
+      setTimeout(() => {
+        div.style.opacity = '0';
+        setTimeout(() => div.remove(), 300);
+      }, 3400);
+    }
+
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('liveClock').textContent = now.toLocaleString('th-TH', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      });
+    }
+
+    updateClock();
+    renderAll();
+    setInterval(() => {
+      updateClock();
+      renderDocks();
+      renderTable();
+    }, 30000);
+    setInterval(updateClock, 1000);
+  </script>
+</body>
+</html>
